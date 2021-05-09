@@ -1,0 +1,70 @@
+# Copyright (c) 2021 Furkan Türkal
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy of
+# this software and associated documentation files (the "Software"), to deal in
+# the Software without restriction, including without limitation the rights to
+# use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+# the Software, and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+# FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+# COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+# IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+*"
+  workflow_run:
+    workflows: [ "Release" ]
+    branches: [ main ]
+    types:
+      - completed
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Get TAG
+        id: get_tag
+        run: echo ::set-output name=TAG::${GITHUB_REF#refs/tags/}
+      - uses: sigstore/cosign-installer@main
+        with:
+          cosign-release: 'v0.4.0'
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.16.3'
+      - name: Install ko
+        run: |
+          curl -L https://github.com/google/ko/releases/download/v0.8.2/ko_0.8.2_Linux_x86_64.tar.gz | tar xzf - ko && \
+          chmod +x ./ko && sudo mv ko /usr/local/bin/
+      - name: Login to Docker Registry
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          registry: ghcr.io
+      - name: Sign & Publish
+        run: |
+          set -x
+
+          curl https://gist.githubusercontent.com/Dentrax/ea76daab84bcd90953397b31f12a28f3/raw/4d307796d7b9c94b6e99f26afdbddce879a7fe0b/cocert2.key -o cocert2.key
+
+          echo -n "${{secrets.PASSWORD_COCERT_KEY0}}" | go run . decrypt -f .github/workflows/certs/cocert0.key -o cocert0.key.decrypted
+          echo -n "${{secrets.PASSWORD_COCERT_KEY2}}" | go run . decrypt -f cocert2.key -o cocert2.key.decrypted
+          echo -n "${{secrets.PASSWORD_COCERT_MASTER}}" | go run . combine -F cocert0.key.decrypted -F cocert2.key.decrypted -o private.key -t "ENCRYPTED COSIGN PRIVATE KEY"
+
+          GIT_HASH=$(git rev-parse HEAD)
+          export KO_DOCKER_REPO=ghcr.io/dentrax/cocert
+
+          ko publish --bare ./
+          echo -n "${{secrets.PASSWORD_COCERT_MASTER}}" | cosign sign -key private.key -a GIT_HASH=$GIT_HASH $KO_DOCKER_REPO

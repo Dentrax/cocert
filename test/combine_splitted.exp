@@ -1,0 +1,15 @@
+#!/usr/bin/expect -f
+
+set timeout -1
+spawn ./cocert combine -f cocert0.key -f cocert1.key -o combined_splitted.key
+
+expect "Enter your password for cocert0.key:"
+send -- "0\n"
+
+expect "Enter your password for cocert1.key:"
+send -- "1\n"
+
+expect "Enter your master key:"
+send -- "cosign\n"
+
+expect eof

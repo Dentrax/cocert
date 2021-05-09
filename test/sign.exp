@@ -1,0 +1,15 @@
+#!/usr/bin/expect -f
+
+set timeout -1
+spawn ./cocert sign -f cocert0.key -f cocert1.key -p "Foo Bar Baz" -O combine.signature
+
+expect "Enter your password for cocert0.key:"
+send -- "0\n"
+
+expect "Enter your password for cocert1.key:"
+send -- "1\n"
+
+expect "Enter your master key:"
+send -- "123\n"
+
+expect eof

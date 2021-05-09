@@ -1,0 +1,30 @@
+#!/usr/bin/expect -f
+
+set timeout -1
+spawn ./cocert generate -p 3 -t 2
+
+expect "Create new password for private key: "
+send -- "123\n"
+
+expect "Confirm password:"
+send -- "123\n"
+
+expect "Do you want to encrypt each key using TUF?"
+send -- "y\r"
+
+expect "Create new password for cocert0.key key:"
+send -- "0\n"
+expect "Confirm password:"
+send -- "0\n"
+
+expect "Create new password for cocert1.key key:"
+send -- "1\n"
+expect "Confirm password:"
+send -- "1\n"
+
+expect "Create new password for cocert2.key key:"
+send -- "2\n"
+expect "Confirm password:"
+send -- "2\n"
+
+expect eof
